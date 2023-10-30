@@ -7,7 +7,10 @@
     </node>
 
 	<node pkg="point_cloud_io" type="read" name="read_ply" output="screen">
-		<param name="file_path" value="$(find elevation_mapping_demos)/sample_data/maze.ply" />
+		<!-- <param name="file_path" value="$(find elevation_mapping_demos)/sample_data/maze.ply" /> -->
+		<!-- <param name="file_path" value="$(find elevation_mapping_demos)/sample_data/nsh-floor-A-april-3rd-no-tf.ply" /> -->
+		<param name="file_path" value="$(find elevation_mapping_demos)/sample_data/rtab_house_gazebo_cloud.ply" />
+		
 		<param name="topic" value="/points" />
 		<param name="frame" value="map" />
 		<param name="rate" value="1.0" />

@@ -63,14 +63,17 @@ void ElevationMapping::setupSubscribers() {  // Handle deprecated point_cloud_to
     ROS_WARN("Parameter 'point_cloud_topic' is deprecated, please use 'input_sources' instead.");
   }
   if (!configuredInputSources && hasDeprecatedPointcloudTopic) {
+    ROS_INFO("Using deprecated 'point_cloud_topic' parameter.");
     pointCloudSubscriber_ = nodeHandle_.subscribe<sensor_msgs::PointCloud2>(
         parameters.pointCloudTopic_, 1, [&](const auto& msg) { pointCloudCallback(msg, true, sensorProcessor_); });
   }
   if (configuredInputSources) {
+    ROS_INFO("Using 'input_sources' parameter.");
     inputSources_.registerCallbacks(*this, make_pair("pointcloud", &ElevationMapping::pointCloudCallback));
   }
 
   if (!parameters.robotPoseTopic_.empty()) {
+    std::cout << "robotPoseTopic_: " << parameters.robotPoseTopic_ << std::endl;
     robotPoseSubscriber_.subscribe(nodeHandle_, parameters.robotPoseTopic_, 1);
     robotPoseCache_.connectInput(robotPoseSubscriber_);
     robotPoseCache_.setCacheSize(parameters.robotPoseCacheSize_);
@@ -281,11 +284,15 @@ bool ElevationMapping::initialize() {
   ROS_INFO("Elevation mapping node initializing ... ");
   fusionServiceThread_ = boost::thread(&ElevationMapping::runFusionServiceThread, this);
   ros::Duration(1.0).sleep();  // Need this to get the TF caches fill up.
+  ROS_INFO("Elevation mapping node initializing ... ");
   resetMapUpdateTimer();
+  ROS_INFO("Elevation mapping node initializing ... ");
   fusedMapPublishTimer_.start();
   visibilityCleanupThread_ = boost::thread([this] { visibilityCleanupThread(); });
   visibilityCleanupTimer_.start();
+  ROS_INFO("before initializeElevationMap.");
   initializeElevationMap();
+  ROS_INFO("Elevation mapping node initializing ... end ");
   return true;
 }
 
@@ -294,7 +301,7 @@ void ElevationMapping::runFusionServiceThread() {
 
   while (nodeHandle_.ok()) {
     fusionServiceQueue_.callAvailable();
-
+    ROS_DEBUG("Elevation map is running fusion service thread.");
     // Sleep until the next execution.
     loopRate.sleep();
   }
@@ -314,7 +321,7 @@ void ElevationMapping::visibilityCleanupThread() {
 void ElevationMapping::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& pointCloudMsg, bool publishPointCloud,
                                           const SensorProcessorBase::Ptr& sensorProcessor_) {
   const Parameters parameters{parameters_.getData()};
-  ROS_DEBUG("Processing data from: %s", pointCloudMsg->header.frame_id.c_str());
+  ROS_INFO("Processing data from: %s", pointCloudMsg->header.frame_id.c_str());
   if (!parameters.updatesEnabled_) {
     ROS_WARN_THROTTLE(10, "Updating of elevation map is disabled. (Warning message is throttled, 10s.)");
     if (publishPointCloud) {
@@ -328,7 +335,7 @@ void ElevationMapping::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr
   if (!receivedFirstMatchingPointcloudAndPose_) {
     const double oldestPoseTime = robotPoseCache_.getOldestTime().toSec();
     const double currentPointCloudTime = pointCloudMsg->header.stamp.toSec();
-
+    std::cout << "oldestPoseTime: " << oldestPoseTime << std::endl;
     if (currentPointCloudTime < oldestPoseTime) {
       ROS_WARN_THROTTLE(5, "No corresponding point cloud and pose are found. Waiting for first match. (Warning message is throttled, 5s.)");
       return;
@@ -623,6 +630,7 @@ bool ElevationMapping::enableUpdatesServiceCallback(std_srvs::Empty::Request& /*
 }
 
 bool ElevationMapping::initializeElevationMap() {
+  ROS_INFO("Initializing elevation map... inside initializeElevationMap.");
   const Parameters parameters{parameters_.getData()};
   if (parameters.initializeElevationMap_) {
     if (static_cast<elevation_mapping::InitializationMethods>(parameters.initializationMethod_) ==
@@ -631,6 +639,8 @@ bool ElevationMapping::initializeElevationMap() {
 
       // Listen to transform between mapFrameId_ and targetFrameInitSubmap_ and use z value for initialization
       try {
+        ROS_DEBUG_STREAM("Waiting for transform between " << parameters.mapFrameId_ << " and " << parameters.targetFrameInitSubmap_
+                                                          << " to become available...");
         transformListener_.waitForTransform(parameters.mapFrameId_, parameters.targetFrameInitSubmap_, ros::Time(0), ros::Duration(5.0));
         transformListener_.lookupTransform(parameters.mapFrameId_, parameters.targetFrameInitSubmap_, ros::Time(0), transform);
         ROS_DEBUG_STREAM("Initializing with x: " << transform.getOrigin().x() << " y: " << transform.getOrigin().y()
